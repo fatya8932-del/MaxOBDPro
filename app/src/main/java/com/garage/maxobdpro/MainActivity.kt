@@ -31,26 +31,37 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        tvStatus = findViewById(R.id.tvStatus)
-        tvVoltage = findViewById(R.id.tvVoltage)
-        tvAdapterAlert = findViewById(R.id.tvAdapterAlert)
-        tvConsole = findViewById(R.id.tvConsole)
-        spinnerBrand = findViewById(R.id.spinnerBrand)
-        requestBluetoothPermissions()
-        setupBrandSpinner()
+        try {
+            setContentView(R.layout.activity_main)
+            tvStatus = findViewById(R.id.tvStatus)
+            tvVoltage = findViewById(R.id.tvVoltage)
+            tvAdapterAlert = findViewById(R.id.tvAdapterAlert)
+            tvConsole = findViewById(R.id.tvConsole)
+            spinnerBrand = findViewById(R.id.spinnerBrand)
+            setupBrandSpinner()
+            setupButtons()
+            requestBluetoothPermissions()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
 
+    private fun setupButtons() {
         findViewById<Button>(R.id.btnConnect).setOnClickListener {
             tvStatus.text = "Connecting KONNWEI..."
             lifecycleScope.launch {
-                val ok = btManager.connectToKonnwei("KONNWEI")
-                if (ok) {
-                    tvStatus.text = "Connected: KONNWEI MAXOBD"
-                    val volt = btManager.sendCommand("AT RV")
-                    tvVoltage.text = volt
-                    log("Connected! Voltage: $volt")
-                } else {
-                    tvStatus.text = "Connection Failed (Check Bluetooth)"
+                try {
+                    val ok = btManager.connectToKonnwei("KONNWEI")
+                    if (ok) {
+                        tvStatus.text = "Connected: KONNWEI MAXOBD"
+                        val volt = btManager.sendCommand("AT RV")
+                        tvVoltage.text = volt
+                        log("Connected! Voltage: $volt")
+                    } else {
+                        tvStatus.text = "Connection Failed (Pair Bluetooth First)"
+                    }
+                } catch (e: Exception) {
+                    tvStatus.text = "Error: ${e.message}"
                 }
             }
         }
@@ -137,9 +148,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestBluetoothPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT), 101)
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT), 101)
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
