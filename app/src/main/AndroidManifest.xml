@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="MaxOBD ช่างอู่โปร"
+        android:label="MaxOBD Pro"
         android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
         <activity
             android:name=".MainActivity"
