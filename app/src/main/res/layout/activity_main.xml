@@ -1,119 +1,85 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://android.com"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="#121212"
     android:padding="16dp">
+
+    <!-- แถบสถานะการเชื่อมต่อด้านบน -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="สถานะ: ยังไม่ได้เชื่อมต่อหัวสแกน"
+        android:textColor="#00E676"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingBottom="8dp" />
+
+    <!-- แถบแจ้งเตือนหัวสแกน (KONNWEI / ELM327) -->
+    <TextView
+        android:id="@+id/tvAdapterAlert"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="กรุณาเสียบหัวสแกนเข้ากับรถและเปิด Bluetooth"
+        android:textColor="#FFAB00"
+        android:textSize="14sp"
+        android:paddingBottom="16dp" />
+
+    <!-- ปุ่มคำสั่งหลัก -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="#1E1E1E"
-        android:padding="12dp"
-        android:gravity="center_vertical">
-        <TextView
-            android:id="@t+/id/tvStatus"
-            android:layout_width="0px"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Disconnected: KONNWEI"            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-        <TextView
-            android:id="@+/id/tvVoltage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--.- V"
-            android:textColor="#00E676"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginEnd="16dp" />
+        android:gravity="center"
+        android:paddingBottom="16dp">
+
         <Button
-            android:id="@+/id/btnConnect"
-            android:layout_width="wrap_content"
+            android:id="@+id/btnConnect"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Connect KONNWEI"            android:backgroundTint="#FF6D00"
-            android:textColor="#FFFFFF" />
-    </LinearLayout>
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp"
-        android:gravity="center_vertical">
-        <Spinner
-            android:id="@+/id/spinnerBrand"
-            android:layout_width="0px"
-            android:layout_height="48dp"
             android:layout_weight="1"
-            android:background="#2C2C2C" />
-        <TextView
-            android:id="@t+/id/tvAdapterAlert"
-            android:layout_width="0px"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.5"
-            android:layout_marginStart="12dp"
-            android:padding="10dp"
-            android:background="#1B5E20"
-            android:text="Direct Plug: KONNWEI MAXOBD Ready"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-    </LinearLayout>
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="12dp">
-        <Button
-            android:id="@+/id/btnReadDtc"
-            android:layout_width="0px"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:text="Read DTC"
+            android:text="เชื่อมต่อ"
             android:backgroundTint="#1976D2"
             android:textColor="#FFFFFF"
             android:layout_marginEnd="6dp" />
+
         <Button
-            android:id="@t+/id/btnClearDtc"
-            android:layout_width="0px"
-            android:layout_height="56dp"
+            android:id="@+id/btnReadDtc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Clear DTC"
+            android:text="อ่านโค้ด"
+            android:backgroundTint="#388E3C"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btnClearDtc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="ลบโค้ด"
             android:backgroundTint="#D32F2F"
-            android:textColor="#FFFFFF"
-            android:layout_marginEnd="6dp" />
-        <Button
-            android:id="@+/id/btnLiveData"
-            android:layout_width="0px"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:text="Live Data"
-            android:backgroundTint="#00796B"
-            android:textColor="#FFFFFF"
-            android:layout_marginEnd="6dp" />
-        <Button
-            android:id="@+/id/btnActiveTest"
-            android:layout_width="0px"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:text="Injector #1 Cut"
-            android:backgroundTint="#F57C00"
             android:textColor="#FFFFFF" />
     </LinearLayout>
+
+    <!-- พื้นที่แสดงผลข้อมูลรถและรหัสปัญหา -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="12dp"
-        android:background="#1A1A1A"
-        android:padding="16dp">
+        android:background="#1E1E1E"
+        android:padding="12dp">
+
         <TextView
-            android:id="@t+/id/tvConsole"
+            android:id="@+id/tvLog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Ready... Press Connect KONNWEI"
-            android:textColor="#00E676"
-            android:textSize="18sp" />
+            android:text="พร้อมทำงาน... รอรับข้อมูลจากกล่อง ECU"
+            android:textColor="#E0E0E0"
+            android:textSize="15sp" />
     </ScrollView>
+
 </LinearLayout>
