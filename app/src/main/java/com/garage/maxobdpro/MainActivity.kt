@@ -317,21 +317,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupBrandSpinner() {
-        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, carBrands) {
+               val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, carBrands) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val view = super.getView(position, convertView, parent) as TextView
-                view.setTextColor(Color.WHITE)
-                view.textSize = 16f
-                return view
+                return TextView(context).apply {
+                    text = carBrands[position]
+                    setTextColor(Color.WHITE)
+                    textSize = 18f
+                    setPadding(24, 24, 24, 24)
+                }
             }
             override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val view = super.getDropDownView(position, convertView, parent) as TextView
-                view.setBackgroundColor(Color.parseColor("#2C2C2C"))
-                view.setTextColor(Color.WHITE)
-                view.setPadding(24, 24, 24, 24)
-                return view
+                return TextView(context).apply {
+                    text = carBrands[position]
+                    setBackgroundColor(Color.parseColor("#2C2C2C"))
+                    setTextColor(Color.WHITE)
+                    textSize = 18f
+                    setPadding(32, 32, 32, 32)
+                }
             }
         }
+
         spinnerBrand.adapter = adapter
         spinnerBrand.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
