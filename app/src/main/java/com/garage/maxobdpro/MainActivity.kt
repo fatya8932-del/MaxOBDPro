@@ -262,4 +262,11 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    override fun onDestroy() {
+       override fun onDestroy() {
+        super.onDestroy()
+        try {
+            btManager.disconnect()
+        } catch (_: Exception) {}
+    }
+}
+
