@@ -240,9 +240,177 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnLiveData.setOnClickListener {
+               btnLiveData.setOnClickListener {
             lifecycleScope.launch {
-                log("กำลังอ่านค่าสดจากกล่อง ECU...")
+                log("Reading Live Data from ECU...")
                 if (isDemoMode) {
                     delay(400)
                     val rpm = calculateRpm("41 0C 0D 48")
+                    val coolant = calculateCoolant("41 05 7D")
+                    val rail = calculateRailPressure("41 23 0C 80")
+                    log("[Live Data]\n- RPM: $rpm rpm\n- Coolant Temp: $coolant C\n- Fuel Rail: $rail MPa\n- Battery: 13.8 V")
+                } else {
+                    btManager.sendCommand("AT SH 7E0")
+                    val rpmHex = btManager.sendCommand("010C")
+                    val tempHex = btManager.sendCommand("0105")
+                    val railHex = btManager.sendCommand("0123")
+                    val volt = btManager.sendCommand("AT RV")
+                    tvVoltage.text = volt
+                    log("[Live Data]\n- RPM: ${calculateRpm(rpmHex)} ($rpmHex)\n- Coolant: ${calculateCoolant(tempHex)} C ($tempHex)\n- Rail: ${calculateRailPressure(railHex)} MPa ($railHex)\n- Battery: $volt")
+                }
+            }
+        }
+
+        btnActiveTest.setOnClickListener {
+            lifecycleScope.launch {
+                log("Injector #1 Cut Test (5 sec)...")
+                if (isDemoMode) {
+                    log("Injector #1 Cut: ON (6F 10 01 03 01)")
+                    delay(5000)
+                    log("Injector #1 Cut: OFF Normal (6F 10 01 00)")
+                } else {
+                    btManager.sendCommand("AT SH 7E0")
+                    val resOn = btManager.sendCommand("2F 10 01 03 01")
+                    log("Cut ON: $resOn")
+                    delay(5000)
+                    val resOff = btManager.sendCommand("2F 10 01 00")
+                    log("Cut OFF: $resOff")
+                }
+            }
+        }
+    }
+
+    private fun calculateRpm(hex: String): String {
+        return try {
+            val clean = hex.replace(" ", "")
+            val idx = clean.indexOf("410C")
+            if (idx != -1 && clean.length >= idx + 8) {
+                val a = clean.substring(idx + 4, idx + 6).toInt(16)
+                val b = clean.substring(idx + 6, idx + 8).toInt(16)
+                (((a * 256) + b) / 4).toString()
+            } else "N/A"
+        } catch (_: Exception) { "N/A" }
+    }
+
+    private fun calculateCoolant(hex: String): String {
+        return try {
+            val clean = hex.replace(" ", "")
+            val idx = clean.indexOf("4105")
+            if (idx != -1 && clean.length >= idx + 6) {
+                val a = clean.substring(idx + 4, idx + 6).toInt(16)
+                (a - 40).toString()
+            } else "N/A"
+        } catch (_: Exception) { "N/A" }
+    }
+
+    private fun calculateRailPressure(hex: String): String {
+        return try {
+            val clean = hex.replace(" ", "")
+            val idx = clean.indexOf("4123")
+            if (idx != -1 && clean.length >= idx + 8) {
+                val a = clean.substring(idx + 4, idx + 6).toInt(16)
+                val b = clean.substring(idx + 6, idx + 8).toInt(16)
+                val kpa = ((a * 256) + b) * 10
+                String.format("%.1f", kpa / 1000.0)
+            } else "N/A"
+        } catch (_: Exception) { "N/A" }
+    }
+
+    private fun setupBrandSpinner() {
+        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, carBrands) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent) as TextView
+                view.setTextColor(Color.WHITE)
+                view.textSize = 16f
+                return view
+            }
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent) as TextView
+                view.setBackgroundColor(Color.parseColor("#2C2C2C"))
+                view.setTextColor(Color.WHITE)
+                view.setPadding(24, 24, 24, 24)
+                return view
+            }
+        }
+        spinnerBrand.adapter = adapter
+        spinnerBrand.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                val selected = carBrands[pos]
+                lifecycleScope.launch {
+                    try {
+                        when {
+                            selected.contains("CAN 29-Bit") -> {
+                                if (!isDemoMode) btManager.sendCommand("AT SP 7")
+                                setAlert(false, "Protocol: Honda CAN 29-Bit Ready")
+                            }
+                            selected.contains("MS-CAN") -> setAlert(true, "WARNING: Switch Adapter to MS-CAN (Pin 3/11)")
+                            selected.contains("24V") -> setAlert(true, "DANGER: Use 24V->12V Step-Down Cable First!")
+                            else -> {
+                                if (!isDemoMode) btManager.sendCommand("AT SP 6")
+                                setAlert(false, "Direct Plug: KONNWEI MAXOBD Ready")
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun setAlert(isWarning: Boolean, msg: String) {
+        tvAdapterAlert.text = msg
+        tvAdapterAlert.setBackgroundColor(if (isWarning) 0xFFE65100.toInt() else 0xFF1B5E20.toInt())
+    }
+
+    private fun parseDtcResponse(raw: String): String {
+        if (raw.contains("NO DATA") || raw.contains("43 00")) return "OK: No Fault Codes (Normal)"
+        val clean = raw.replace(" ", "")
+        val idx = clean.indexOf("43")
+        if (idx == -1 || clean.length < idx + 6) return "Cannot decode DTC, check Raw Hex above"
+
+        val result = StringBuilder("Found Fault Codes:\n")
+        var pos = idx + 4
+        if (clean.length == idx + 6) pos = idx + 2
+
+        while (pos + 4 <= clean.length) {
+            val codeHex = clean.substring(pos, pos + 4)
+            if (codeHex != "0000") {
+                val dtcCode = decodeDtcHex(codeHex)
+                val desc = dtcDatabase[dtcCode] ?: "Manufacturer Specific Code"
+                result.append("- [$dtcCode] : $desc\n")
+            }
+            pos += 4
+        }
+        return result.toString().trim()
+    }
+
+    private fun decodeDtcHex(hex4: String): String {
+        val firstChar = when (hex4) {
+            '0' -> "P0"; '1' -> "P1"; '2' -> "P2"; '3' -> "P3"
+            '4' -> "C0"; '5' -> "C1"; '6' -> "C2"; '7' -> "C3"
+            '8' -> "B0"; '9' -> "B1"; 'A', 'a' -> "B2"; 'B', 'b' -> "B3"
+            'C', 'c' -> "U0"; 'D', 'd' -> "U1"; 'E', 'e' -> "U2"; 'F', 'f' -> "U3"
+            else -> "P0"
+        }
+        return firstChar + hex4.substring(1).uppercase()
+    }
+
+    private fun log(text: String) {
+        tvConsole.text = "$text\n-----------------------------\n${tvConsole.text}"
+    }
+
+    private fun requestBluetoothPermissions() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT), 101)
+            }
+        } catch (_: Exception) {}
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            btManager.disconnect()
+        } catch (_: Exception) {}
+    }
+}
