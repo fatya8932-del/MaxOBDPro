@@ -385,7 +385,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun decodeDtcHex(hex4: String): String {
-        val firstChar = when (hex4) {
+        val firstChar = when (hex4[0]) {
             '0' -> "P0"; '1' -> "P1"; '2' -> "P2"; '3' -> "P3"
             '4' -> "C0"; '5' -> "C1"; '6' -> "C2"; '7' -> "C3"
             '8' -> "B0"; '9' -> "B1"; 'A', 'a' -> "B2"; 'B', 'b' -> "B3"
