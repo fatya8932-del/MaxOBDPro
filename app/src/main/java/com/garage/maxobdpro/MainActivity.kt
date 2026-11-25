@@ -12,10 +12,14 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -29,11 +33,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAdapterAlert: TextView
     private lateinit var spinnerBrand: Spinner
 
-    // หน้าสแกน (Page 1)
+    // หน้าสแกน / Database (Page 1)
     private lateinit var tvSubTitle: TextView
     private lateinit var tvConsole: TextView
     private lateinit var btnSubRescan: Button
     private lateinit var btnSubClear: Button
+    private lateinit var btnSearchCode: Button
 
     // หน้าดิสเพลย์เกจวัด (Page 2)
     private lateinit var gaugeContainer: LinearLayout
@@ -41,7 +46,6 @@ class MainActivity : AppCompatActivity() {
     private var isAnalogMode = false
     private var liveGaugeJob: Job? = null
 
-    // รายการค่าที่เลือกโชว์บนดิสเพลย์
     private val gaugeEnabled = mutableMapOf(
         "VOLT" to true,
         "TEMP" to true,
@@ -62,6 +66,10 @@ class MainActivity : AppCompatActivity() {
     private var isDemoMode = false
     private var currentModule = "OBD2"
 
+    // ฐานข้อมูลโค้ดเสียจากไฟล์ xx_dtc_en.bin (โหลดเข้าหน่วยความจำ)
+    private val binDtcMap = HashMap<String, String>()
+    private var isBinLoaded = false
+
     private val carBrands = listOf(
         "Isuzu D-Max / MU-X (2004-2026)",
         "Toyota Vigo / Revo / Fortuner (2004-2026)",
@@ -72,7 +80,8 @@ class MainActivity : AppCompatActivity() {
         "Truck 24V (Hino / Isuzu) [24V->12V]"
     )
 
-    private val dtcDatabase = mapOf(
+    // ฐานข้อมูลแปลภาษาไทยด่วนสำหรับโค้ดที่พบบ่อยในอู่
+    private val thaiDtcDatabase = mapOf(
         "P0087" to "[เครื่องยนต์] แรงดันรางคอมมอนเรลต่ำเกินไป (เช็ก SCV / กรองโซล่า / ท้ายราง)",
         "P0088" to "[เครื่องยนต์] แรงดันรางคอมมอนเรลสูงเกินไป (เช็กวาล์ว SCV ค้าง)",
         "P0089" to "[เครื่องยนต์] วาล์วควบคุมแรงดันน้ำมันผิดปกติ (SCV Valve)",
@@ -93,8 +102,8 @@ class MainActivity : AppCompatActivity() {
         "C0040" to "[ABS] เซ็นเซอร์ความเร็วล้อหลังขวา (RR) ขาดวงจร",
         "C0110" to "[ABS] มอเตอร์ปั๊ม ABS ทำงานผิดปกติ / ฟิวส์ขาด",
         "B0001" to "[SRS] วงจรถุงลมนิรภัยฝั่งคนขับความต้านทานสูง (เช็กสายแพรแตร)",
-        "B0010" to "[SRS] วงจรถุงลมนิรภัยฝั่งผู้โดยสารผิดปกติ",
-        "B1000" to "[SRS] กล่องควบคุมถุงลมนิรภัย (ECU SRS) ขัดข้องภายใน"
+        "B1248" to "[BCM] วงจรหลอดไฟเบรกขาด / ขัดข้อง",
+        "B1500" to "[BCM] วงจรหลอดไฟเลี้ยวขาด / ขัดข้อง"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -103,23 +112,61 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.parseColor("#121212"))
         }
 
-        viewFlipper.addView(buildMainMenuPage())   // Page 0: หน้าหลัก
-        viewFlipper.addView(buildScanDetailPage()) // Page 1: หน้าสแกน / Database
+        viewFlipper.addView(buildMainMenuPage())   // Page 0: หน้าหลัก 8 ปุ่ม
+        viewFlipper.addView(buildScanDetailPage()) // Page 1: หน้าสแกน / ค่าสด / Database
         viewFlipper.addView(buildDisplayPage())    // Page 2: หน้าดิสเพลย์เกจวัด
 
         setContentView(viewFlipper)
         setupBrandSpinner()
         requestBluetoothPermissions()
+        loadBinaryDtcDatabase()
     }
 
-    // ==================== PAGE 0: หน้าเมนูหลัก ====================
+    // โหลดฐานข้อมูล xx_dtc_en.bin (1.48 MB) จาก assets
+    private fun loadBinaryDtcDatabase() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                assets.open("xx_dtc_en.bin").use { input ->
+                    BufferedReader(InputStreamReader(input, Charsets.UTF_8)).use { reader ->
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            val parts = line!!.split("\t")
+                            if (parts.size >= 2) {
+                                val rawKey = parts[0].trim()
+                                val desc = parts[1].replace("\"", "").replace("\\n", " ").trim()
+                                val code = normalizeKeyToDtc(rawKey)
+                                if (code.isNotEmpty() && desc.isNotEmpty()) {
+                                    binDtcMap[code] = desc
+                                }
+                            }
+                        }
+                    }
+                }
+                isBinLoaded = true
+                withContext(Dispatchers.Main) {
+                    tvAdapterAlert.text = "KONNWEI Ready | โหลดฐานข้อมูลโค้ด ${binDtcMap.size} รายการสำเร็จ"
+                }
+            } catch (_: Exception) {
+                isBinLoaded = false
+            }
+        }
+    }
+
+    private fun normalizeKeyToDtc(rawKey: String): String {
+        val clean = rawKey.replace("0x", "", true).replace(",", "").trim().uppercase()
+        if (clean.length == 4) {
+            return decodeDtcHex(clean)
+        }
+        return clean
+    }
+
+    // ==================== PAGE 0: หน้าเมนูหลัก (8 ปุ่มใหญ่) ====================
     private fun buildMainMenuPage(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(20, 16, 20, 16)
         }
 
-        // แถบสถานะ + โวลต์
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 0, 0, 8)
@@ -140,7 +187,6 @@ class MainActivity : AppCompatActivity() {
         topBar.addView(tvVoltage)
         root.addView(topBar)
 
-        // แถบเตือนโปรโตคอล + ปุ่มเชื่อมต่อ/Demo
         val connBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -175,7 +221,6 @@ class MainActivity : AppCompatActivity() {
         connBar.addView(btnDemo)
         root.addView(connBar)
 
-        // ตัวเลือกยี่ห้อรถ
         spinnerBrand = Spinner(this).apply {
             setBackgroundColor(Color.parseColor("#2C2C2C"))
             val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 90)
@@ -184,28 +229,33 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(spinnerBrand)
 
-        // ตารางปุ่มเมนูใหญ่ 2 แถว x 3 ปุ่ม
+        // แถวที่ 1: สแกนทั่วไป | สแกนเชิงลึก (เลือกระบบ) | สแกนทั้งคัน | แอคทีฟเทส
         val gridRow1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
             setPadding(0, 0, 0, 10)
         }
-        gridRow1.addView(createMenuCard("สแกนโค้ดทั่วไป\n(OBD2 Standard)", "#2E7D32") { openModule("OBD2") })
-        gridRow1.addView(spaceBox(12))
-        gridRow1.addView(createMenuCard("สแกนเชิงลึก\n(ECM / Engine)", "#00695C") { openModule("ECM") })
-        gridRow1.addView(spaceBox(12))
-        gridRow1.addView(createMenuCard("ระบบเบรก\n(ABS Module)", "#D84315") { openModule("ABS") })
+        gridRow1.addView(createMenuCard("สแกนโค้ดทั่วไป\n(OBD2)", "#2E7D32") { openModule("OBD2") })
+        gridRow1.addView(spaceBox(10))
+        gridRow1.addView(createMenuCard("สแกนเชิงลึก\n(ECM/BCM/ABS/AIR)", "#00695C") { showDeepScanMenu() })
+        gridRow1.addView(spaceBox(10))
+        gridRow1.addView(createMenuCard("สแกนทั้งคัน\n(Auto Scan All)", "#D84315") { openModule("AUTOSCAN") })
+        gridRow1.addView(spaceBox(10))
+        gridRow1.addView(createMenuCard("แอคทีฟเทส\n(Active Test)", "#EF6C00") { openModule("ACTIVE") })
         root.addView(gridRow1)
 
+        // แถวที่ 2: ค่าสด | ดิสเพลย์เกจวัด | ฐานข้อมูลโค้ด | ฟังก์ชันพิเศษ
         val gridRow2 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         }
-        gridRow2.addView(createMenuCard("ถุงลมนิรภัย\n(SRS / Airbag)", "#AD1457") { openModule("SRS") })
-        gridRow2.addView(spaceBox(12))
+        gridRow2.addView(createMenuCard("ค่าสดทั้งหมด\n(Live Data)", "#00838F") { openModule("LIVE") })
+        gridRow2.addView(spaceBox(10))
         gridRow2.addView(createMenuCard("ดิสเพลย์เกจวัด\n(เข็ม / ดิจิตอล)", "#0277BD") { openDisplayDashboard() })
-        gridRow2.addView(spaceBox(12))
-        gridRow2.addView(createMenuCard("ฐานข้อมูลโค้ด\n(Database ภาษาไทย)", "#4527A0") { openModule("DB") })
+        gridRow2.addView(spaceBox(10))
+        gridRow2.addView(createMenuCard("ฐานข้อมูลโค้ด\n(Database ค้นหา)", "#4527A0") { openModule("DB") })
+        gridRow2.addView(spaceBox(10))
+        gridRow2.addView(createMenuCard("รีเซ็ต / เซอร์วิส\n(Oil / DPF / EPB)", "#AD1457") { openModule("SERVICE") })
         root.addView(gridRow2)
 
         return root
@@ -216,13 +266,13 @@ class MainActivity : AppCompatActivity() {
             text = title
             setBackgroundColor(Color.parseColor(colorHex))
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 16f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
             setOnClickListener { onClick() }
         }
     }
 
-    // ==================== PAGE 1: หน้าสแกนแต่ละระบบ / Database ====================
+    // ==================== PAGE 1: หน้าสแกน / ค่าสด / Database ====================
     private fun buildScanDetailPage(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -242,12 +292,20 @@ class MainActivity : AppCompatActivity() {
             setPadding(24, 14, 24, 14)
             setOnClickListener { viewFlipper.displayedChild = 0 }
         }
-              tvSubTitle = TextView(this).apply {
+        tvSubTitle = TextView(this).apply {
             text = "ระบบสแกน"
             setTextColor(Color.parseColor("#00E676"))
-            textSize = 20f
+            textSize = 19f
             setPadding(20, 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        btnSearchCode = Button(this).apply {
+            text = "พิมพ์ค้นหาโค้ด"
+            setBackgroundColor(Color.parseColor("#6A1B9A"))
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setPadding(24, 14, 24, 14)
+            setOnClickListener { showCodeSearchDialog() }
         }
         btnSubRescan = Button(this).apply {
             text = "สแกนซ้ำ"
@@ -268,6 +326,8 @@ class MainActivity : AppCompatActivity() {
 
         headerBar.addView(btnBack)
         headerBar.addView(tvSubTitle)
+        headerBar.addView(btnSearchCode)
+        headerBar.addView(spaceBox(10))
         headerBar.addView(btnSubRescan)
         headerBar.addView(spaceBox(10))
         headerBar.addView(btnSubClear)
@@ -281,7 +341,7 @@ class MainActivity : AppCompatActivity() {
         tvConsole = TextView(this).apply {
             text = "กำลังเตรียมข้อมูล..."
             setTextColor(Color.parseColor("#E0E0E0"))
-            textSize = 19f
+            textSize = 18f
         }
         scroll.addView(tvConsole)
         root.addView(scroll)
@@ -557,19 +617,52 @@ class MainActivity : AppCompatActivity() {
             canvas.drawText(valText, cx, cy + radius * 0.45f, textPaint)
         }
     }
+    private fun showDeepScanMenu() {
+        val systems = arrayOf(
+            "1. ECM - กล่องเครื่องยนต์ (Engine 7E0)",
+            "2. TCM - กล่องเกียร์อัตโนมัติ (Transmission 7E1)",
+            "3. BCM - กล่องตัวถัง / หลอดไฟขาด / เซ็นทรัลล็อก (Body 7C0)",
+            "4. ABS - ระบบเบรกป้องกันล้อล็อก (Brake 7B0)",
+            "5. SRS - ระบบถุงลมนิรภัย (Airbag 780)",
+            "6. A/C - ระบบแอร์อัตโนมัติ (Air Conditioning 7C4)",
+            "7. EPS - พวงมาลัยพาวเวอร์ไฟฟ้า (Steering 7A2)",
+            "8. METER - หน้าปัดเรือนไมล์ (Cluster 7C0)"
+        )
+        val moduleCodes = arrayOf("ECM", "TCM", "BCM", "ABS", "SRS", "AC", "EPS", "METER")
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("สแกนเชิงลึก: เลือกกล่องควบคุมในรถ")
+            .setItems(systems) { _, which ->
+                openModule(moduleCodes[which])
+            }
+            .setNegativeButton("ยกเลิก", null)
+            .show()
+    }
 
     private fun openModule(module: String) {
         currentModule = module
         viewFlipper.displayedChild = 1
-        btnSubRescan.visibility = if (module == "DB") View.GONE else View.VISIBLE
-        btnSubClear.visibility = if (module == "DB") View.GONE else View.VISIBLE
+        btnSearchCode.visibility = if (module == "DB") View.VISIBLE else View.GONE
+        btnSubRescan.visibility = if (module == "DB" || module == "ACTIVE" || module == "SERVICE") View.GONE else View.VISIBLE
+        btnSubClear.visibility = if (module == "DB" || module == "LIVE" || module == "ACTIVE" || module == "SERVICE" || module == "AUTOSCAN") View.GONE else View.VISIBLE
+
+        btnSubRescan.text = if (module == "LIVE") "อัปเดตค่าสด" else "สแกนซ้ำ"
 
         tvSubTitle.text = when (module) {
             "OBD2" -> "สแกนโค้ดทั่วไป (OBD2 Standard)"
-            "ECM" -> "สแกนเชิงลึกเครื่องยนต์ (ECM 7E0)"
-            "ABS" -> "ระบบเบรกป้องกันล้อล็อก (ABS 7B0)"
-            "SRS" -> "ระบบถุงลมนิรภัย (SRS 780)"
-            "DB" -> "ฐานข้อมูลรหัสโค้ดเสียภาษาไทย"
+            "ECM" -> "ECM: กล่องเครื่องยนต์ (7E0)"
+            "TCM" -> "TCM: กล่องเกียร์อัตโนมัติ (7E1)"
+            "BCM" -> "BCM: ตัวถังและหลอดไฟ (7C0)"
+            "ABS" -> "ABS: ระบบเบรก (7B0)"
+            "SRS" -> "SRS: ถุงลมนิรภัย (780)"
+            "AC" -> "A/C: ระบบแอร์รถยนต์ (7C4)"
+            "EPS" -> "EPS: พวงมาลัยไฟฟ้า (7A2)"
+            "METER" -> "METER: หน้าปัดเรือนไมล์ (7C0)"
+            "AUTOSCAN" -> "Auto Scan: สแกนระบบทั้งคัน"
+            "LIVE" -> "ค่าสดเซ็นเซอร์เครื่องยนต์ (Live Data)"
+            "ACTIVE" -> "แอคทีฟเทส: สั่งทำงานอุปกรณ์"
+            "SERVICE" -> "ฟังก์ชันพิเศษ (Oil / DPF / EPB)"
+            "DB" -> "ฐานข้อมูลโค้ดเสีย (${binDtcMap.size + thaiDtcDatabase.size} รายการ)"
             else -> module
         }
         executeModuleScan(module)
@@ -577,11 +670,90 @@ class MainActivity : AppCompatActivity() {
 
     private fun executeModuleScan(module: String) {
         if (module == "DB") {
-            val sb = StringBuilder("=== ตารางแปลรหัสโค้ดเสียในระบบ (${dtcDatabase.size} รายการ) ===\n\n")
-            for ((code, desc) in dtcDatabase) {
-                sb.append("- $code : $desc\n\n")
+            val sb = StringBuilder("=== ฐานข้อมูลรหัสโค้ดเสียในระบบ ===\n")
+            sb.append("• ฐานข้อมูลภาษาไทยด่วน: ${thaiDtcDatabase.size} รายการ\n")
+            sb.append("• ฐานข้อมูล MaxOBD (xx_dtc_en.bin): ${binDtcMap.size} รายการ\n")
+            sb.append("(กดปุ่ม 'พิมพ์ค้นหาโค้ด' ด้านบนขวาเพื่อค้นหารหัสเช่น P0087, B1248, C0031)\n\n")
+            for ((code, desc) in thaiDtcDatabase) {
+                sb.append("- $code : $desc\n")
             }
             tvConsole.text = sb.toString().trim()
+            return
+        }
+
+        if (module == "LIVE") {
+            tvConsole.text = "กำลังอ่านค่าสดจากกล่อง ECU..."
+            lifecycleScope.launch {
+                if (isDemoMode) {
+                    delay(300)
+                    tvConsole.text = "=== ค่าสดเครื่องยนต์ (โหมดจำลอง) ===\n" +
+                        "• รอบเครื่องยนต์ (RPM) : 850 RPM\n" +
+                        "• อุณหภูมิน้ำหล่อเย็น (ECT) : 86 C\n" +
+                        "• แรงดันรางคอมมอนเรล (FRP) : 32.4 MPa\n" +
+                        "• แรงดันไฟไดชาร์จ / แบต : 13.9 V\n" +
+                        "• แรงดันท่อร่วมไอดี (MAP) : 101 kPa\n" +
+                        "• ความเร็วรถ (VSS) : 0 km/h"
+                } else {
+                    try {
+                        btManager.sendCommand("AT SH 7E0")
+                        val rpm = calculateRpm(btManager.sendCommand("010C"))
+                        val temp = calculateCoolant(btManager.sendCommand("0105"))
+                        val rail = calculateRailPressure(btManager.sendCommand("0123"))
+                        val boost = calculateBoost(btManager.sendCommand("010B"))
+                        val speed = calculateSpeed(btManager.sendCommand("010D"))
+                        val volt = btManager.sendCommand("AT RV")
+                        tvConsole.text = "=== ค่าสดเครื่องยนต์ (Real-Time ECU) ===\n" +
+                            "• รอบเครื่องยนต์ (RPM) : $rpm RPM\n" +
+                            "• อุณหภูมิน้ำหล่อเย็น (ECT) : $temp C\n" +
+                            "• แรงดันรางคอมมอนเรล (FRP) : $rail MPa\n" +
+                            "• แรงดันไฟไดชาร์จ / แบต : $volt\n" +
+                            "• แรงดันท่อร่วมไอดี (MAP) : $boost kPa\n" +
+                            "• ความเร็วรถ (VSS) : $speed km/h"
+                    } catch (e: Exception) {
+                        tvConsole.text = "อ่านค่าสดไม่สำเร็จ: ${e.message}"
+                    }
+                }
+            }
+            return
+        }
+
+        if (module == "ACTIVE") {
+            showActiveTestDialog()
+            return
+        }
+
+        if (module == "SERVICE") {
+            tvConsole.text = "ฟังก์ชันพิเศษ (Service Reset):\n• รีเซ็ตไฟเตือนเปลี่ยนถ่ายน้ำมันเครื่อง (Oil Reset)\n• สั่งเผาเขม่าท่อไอเสีย (DPF Regeneration)\n• คลายเบรกมือไฟฟ้าเพื่อเปลี่ยนผ้าเบรก (EPB Service)"
+            return
+        }
+        if (module == "AUTOSCAN") {
+            tvConsole.text = "กำลังสแกนตรวจเช็กกล่องควบคุมทั้งคัน (Auto Scan)...\n"
+            lifecycleScope.launch {
+                val allModules = listOf(
+                    Triple("ECM (เครื่องยนต์)", "7E0", "43 01 00 87"),
+                    Triple("TCM (เกียร์ออโต้)", "7E1", "43 00"),
+                    Triple("BCM (ตัวถัง/หลอดไฟขาด)", "7C0", "43 01 92 48"),
+                    Triple("ABS (ระบบเบรก)", "7B0", "43 01 40 31"),
+                    Triple("SRS (ถุงลมนิรภัย)", "780", "43 00"),
+                    Triple("A/C (ระบบแอร์)", "7C4", "43 00")
+                )
+                val report = StringBuilder("=== ผลการสแกนทั้งคัน (Auto Scan Report) ===\n\n")
+                for ((name, header, demoData) in allModules) {
+                    if (isDemoMode) {
+                        delay(300)
+                        report.append("• $name [Header $header]:\n  ${parseDtcResponse(demoData)}\n\n")
+                    } else {
+                        try {
+                            btManager.sendCommand("AT SH $header")
+                            val res = btManager.sendCommand("19 02 0F")
+                            report.append("• $name [Header $header]:\n  ${parseDtcResponse(res)}\n\n")
+                        } catch (e: Exception) {
+                            report.append("• $name: ไม่ตอบสนอง (${e.message})\n\n")
+                        }
+                    }
+                }
+                tvConsole.text = report.toString().trim()
+            }
             return
         }
 
@@ -592,6 +764,7 @@ class MainActivity : AppCompatActivity() {
                 val demoHex = when (module) {
                     "OBD2" -> "43 02 03 80 01 02"
                     "ECM" -> "43 02 00 87 04 04"
+                    "BCM" -> "43 02 92 48 95 00"
                     "ABS" -> "43 01 40 31"
                     "SRS" -> "43 01 80 01"
                     else -> "43 00"
@@ -602,8 +775,13 @@ class MainActivity : AppCompatActivity() {
                     val header = when (module) {
                         "OBD2" -> "7DF"
                         "ECM" -> "7E0"
+                        "TCM" -> "7E1"
+                        "BCM" -> "7C0"
                         "ABS" -> "7B0"
                         "SRS" -> "780"
+                        "AC" -> "7C4"
+                        "EPS" -> "7A2"
+                        "METER" -> "7C0"
                         else -> "7DF"
                     }
                     btManager.sendCommand("AT SH $header")
@@ -612,6 +790,83 @@ class MainActivity : AppCompatActivity() {
                     tvConsole.text = "[กล่อง $module | Header: $header]\nRaw Hex: $res\n\n${parseDtcResponse(res)}"
                 } catch (e: Exception) {
                     tvConsole.text = "เกิดข้อผิดพลาดในการเชื่อมต่อ: ${e.message}"
+                }
+            }
+        }
+    }
+
+    private fun showCodeSearchDialog() {
+        val input = EditText(this).apply {
+            hint = "พิมพ์รหัสโค้ด เช่น P0087, B1248, C0031"
+            setTextColor(Color.BLACK)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("ค้นหาความหมายรหัสโค้ดเสีย")
+            .setView(input)
+            .setPositiveButton("ค้นหา") { _, _ ->
+                val q = input.text.toString().trim().uppercase()
+                if (q.isNotEmpty()) {
+                    val th = thaiDtcDatabase[q]
+                    val en = binDtcMap[q]
+                    val ans = when {
+                        th != null && en != null -> "[$q]\n• แปลไทย: $th\n• ข้อมูล MaxOBD: $en"
+                        th != null -> "[$q]\n• แปลไทย: $th"
+                        en != null -> "[$q]\n• ข้อมูล MaxOBD: $en"
+                        else -> "ไม่พบรหัส $q ในฐานข้อมูล"
+                    }
+                    tvConsole.text = "=== ผลการค้นหารหัสโค้ด ===\n\n$ans"
+                }
+            }
+            .setNegativeButton("ยกเลิก", null)
+            .show()
+    }
+
+    private fun showActiveTestDialog() {
+        val tests = arrayOf(
+            "1. ตัดการทำงานหัวฉีดสูบ #1 (5 วินาที)",
+            "2. ตัดการทำงานหัวฉีดสูบ #2 (5 วินาที)",
+            "3. ตัดการทำงานหัวฉีดสูบ #3 (5 วินาที)",
+            "4. ตัดการทำงานหัวฉีดสูบ #4 (5 วินาที)",
+            "5. สั่งพัดลมหม้อน้ำทำงาน (5 วินาที)",
+            "6. สั่งเปิดวาล์ว EGR ทดสอบ (5 วินาที)"
+        )
+        tvConsole.text = "กรุณาเลือกรายการทดสอบอุปกรณ์ (Active Test) จากหน้าต่างป๊อปอัป..."
+        android.app.AlertDialog.Builder(this)
+            .setTitle("แอคทีฟเทส: เลือกอุปกรณ์ที่ต้องการสั่งทำงาน")
+            .setItems(tests) { _, which ->
+                runActiveTest(which + 1, tests[which])
+            }
+            .setNegativeButton("ปิด", null)
+            .show()
+    }
+
+    private fun runActiveTest(testId: Int, testName: String) {
+        lifecycleScope.launch {
+            tvConsole.text = "กำลังสั่งทำงาน: $testName\nกรุณาฟังเสียงการทำงานของเครื่องยนต์..."
+            if (isDemoMode) {
+                delay(500)
+                tvConsole.text = "[โหมดจำลอง] เริ่มคำสั่ง: $testName -> สถานะ: ON (กำลังทำงาน 5 วินาที...)"
+                delay(5000)
+                tvConsole.text = "[โหมดจำลอง] เสร็จสิ้น: $testName -> สถานะ: OFF (คืนค่าสู่ภาวะปกติ)"
+            } else {
+                try {
+                    btManager.sendCommand("AT SH 7E0")
+                    val pidHex = when (testId) {
+                        1 -> "2F 10 01 03 01"
+                        2 -> "2F 10 02 03 01"
+                        3 -> "2F 10 03 03 01"
+                        4 -> "2F 10 04 03 01"
+                        5 -> "2F 10 10 03 01"
+                        else -> "2F 10 20 03 01"
+                    }
+                    val resOn = btManager.sendCommand(pidHex)
+                    tvConsole.text = "ส่งคำสั่ง ON ($pidHex)\nตอบกลับ: $resOn\n(กำลังทดสอบ 5 วินาที...)"
+                    delay(5000)
+                    val offHex = pidHex.substring(0, 8) + " 00"
+                    val resOff = btManager.sendCommand(offHex)
+                    tvConsole.text = "คืนค่าปกติ OFF ($offHex)\nตอบกลับ: $resOff\nเสร็จสิ้นการทดสอบ!"
+                } catch (e: Exception) {
+                    tvConsole.text = "เกิดข้อผิดพลาดระหว่างสั่ง Active Test: ${e.message}"
                 }
             }
         }
@@ -746,8 +1001,15 @@ class MainActivity : AppCompatActivity() {
             val codeHex = clean.substring(pos, pos + 4)
             if (codeHex != "0000") {
                 val dtcCode = decodeDtcHex(codeHex)
-                val desc = dtcDatabase[dtcCode] ?: "รหัสเฉพาะค่ายรถ (ตรวจสอบใน Database)"
-                result.append("- [$dtcCode] : $desc\n\n")
+                val descThai = thaiDtcDatabase[dtcCode]
+                val descBin = binDtcMap[dtcCode]
+                val finalDesc = when {
+                    descThai != null && descBin != null -> "$descThai\n    ($descBin)"
+                    descThai != null -> descThai
+                    descBin != null -> descBin
+                    else -> "รหัสเฉพาะค่ายรถ (ไม่พบในตาราง)"
+                }
+                result.append("- [$dtcCode] : $finalDesc\n\n")
             }
             pos += 4
         }
@@ -755,8 +1017,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun decodeDtcHex(hex4: String): String {
-         val firstChar = when (hex4.first()) {
-
+        val firstChar = when (hex4.first()) {
             '0' -> "P0"; '1' -> "P1"; '2' -> "P2"; '3' -> "P3"
             '4' -> "C0"; '5' -> "C1"; '6' -> "C2"; '7' -> "C3"
             '8' -> "B0"; '9' -> "B1"; 'A', 'a' -> "B2"; 'B', 'b' -> "B3"
