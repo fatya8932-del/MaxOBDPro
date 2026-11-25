@@ -6,34 +6,57 @@
     android:background="#121212"
     android:padding="16dp">
 
-    <!-- แถบสถานะการเชื่อมต่อด้านบน -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="สถานะ: ยังไม่ได้เชื่อมต่อหัวสแกน"
-        android:textColor="#00E676"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:paddingBottom="8dp" />
-
-    <!-- แถบแจ้งเตือนหัวสแกน (KONNWEI / ELM327) -->
-    <TextView
-        android:id="@+id/tvAdapterAlert"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="กรุณาเสียบหัวสแกนเข้ากับรถและเปิด Bluetooth"
-        android:textColor="#FFAB00"
-        android:textSize="14sp"
-        android:paddingBottom="16dp" />
-
-    <!-- ปุ่มคำสั่งหลัก -->
+    <!-- แถบสถานะและวัดโวลต์แบตเตอรี่ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:paddingBottom="16dp">
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="สถานะ: รอเชื่อมต่อ"
+            android:textColor="#00E676"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvVoltage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0.0 V"
+            android:textColor="#29B6F6"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- แถบแจ้งเตือนหัวสแกน -->
+    <TextView
+        android:id="@+id/tvAdapterAlert"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="กรุณาเสียบหัวสแกนและเปิด Bluetooth"
+        android:textColor="#FFAB00"
+        android:textSize="14sp"
+        android:paddingBottom="10dp" />
+
+    <!-- ตัวเลือกยี่ห้อรถ -->
+    <Spinner
+        android:id="@+id/spinnerBrand"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="#2C2C2C"
+        android:layout_marginBottom="12dp" />
+
+    <!-- ปุ่มคำสั่งแถวที่ 1: เชื่อมต่อ / อ่านโค้ด / ลบโค้ด -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
 
         <Button
             android:id="@+id/btnConnect"
@@ -65,7 +88,34 @@
             android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <!-- พื้นที่แสดงผลข้อมูลรถและรหัสปัญหา -->
+    <!-- ปุ่มคำสั่งแถวที่ 2: ค่าสด (Live Data) / เทสระบบ (Active Test) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="12dp">
+
+        <Button
+            android:id="@+id/btnLiveData"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="ค่าสด (Live Data)"
+            android:backgroundTint="#00838F"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btnActiveTest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="เทสระบบ (Active Test)"
+            android:backgroundTint="#EF6C00"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- หน้าต่างแสดงผลข้อมูล (Console) -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -74,10 +124,10 @@
         android:padding="12dp">
 
         <TextView
-            android:id="@+id/tvLog"
+            android:id="@+id/tvConsole"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="พร้อมทำงาน... รอรับข้อมูลจากกล่อง ECU"
+            android:text="MaxOBDPro พร้อมทำงาน... รอรับข้อมูลจากรถ"
             android:textColor="#E0E0E0"
             android:textSize="15sp" />
     </ScrollView>
