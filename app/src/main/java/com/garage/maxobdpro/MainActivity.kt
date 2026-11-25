@@ -1,8 +1,10 @@
 package com.garage.maxobdpro
 
 import android.Manifest
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +20,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvAdapterAlert: TextView
     private lateinit var tvConsole: TextView
     private lateinit var spinnerBrand: Spinner
+    private lateinit var btnConnect: Button
+    private lateinit var btnReadDtc: Button
+    private lateinit var btnClearDtc: Button
+    private lateinit var btnLiveData: Button
+    private lateinit var btnActiveTest: Button
 
     private val carBrands = listOf(
         "Isuzu D-Max / MU-X (2004-2026)",
@@ -31,23 +38,121 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            setContentView(R.layout.activity_main)
-            tvStatus = findViewById(R.id.tvStatus)
-            tvVoltage = findViewById(R.id.tvVoltage)
-            tvAdapterAlert = findViewById(R.id.tvAdapterAlert)
-            tvConsole = findViewById(R.id.tvConsole)
-            spinnerBrand = findViewById(R.id.spinnerBrand)
-            setupBrandSpinner()
-            setupButtons()
-            requestBluetoothPermissions()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        buildUiDirectly()
+        setupBrandSpinner()
+        setupButtons()
+        requestBluetoothPermissions()
+    }
+
+    private fun buildUiDirectly() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#121212"))
+            setPadding(24, 24, 24, 24)
+        }
+
+        // แถบสถานะและวัดโวลต์
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 12)
+        }
+        tvStatus = TextView(this).apply {
+            text = "สถานะ: รอเชื่อมต่อ KONNWEI"
+            setTextColor(Color.parseColor("#00E676"))
+            textSize = 18f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        tvVoltage = TextView(this).apply {
+            text = "0.0 V"
+            setTextColor(Color.parseColor("#29B6F6"))
+            textSize = 20f
+            gravity = Gravity.END
+        }
+        topRow.addView(tvStatus)
+        topRow.addView(tvVoltage)
+        root.addView(topRow)
+
+        // แถบแจ้งเตือนหัวสแกน
+        tvAdapterAlert = TextView(this).apply {
+            text = "Direct Plug: KONNWEI MAXOBD Ready"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#1B5E20"))
+            setPadding(16, 12, 16, 12)
+            textSize = 14f
+        }
+        root.addView(tvAdapterAlert)
+
+        // ตัวเลือกยี่ห้อรถ
+        spinnerBrand = Spinner(this).apply {
+            setBackgroundColor(Color.parseColor("#E0E0E0"))
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                110
+            )
+            params.setMargins(0, 16, 0, 16)
+            layoutParams = params
+        }
+        root.addView(spinnerBrand)
+
+        // แถวปุ่มที่ 1
+        val btnRow1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 12)
+        }
+        btnConnect = createBtn("เชื่อมต่อ", "#1976D2")
+        btnReadDtc = createBtn("อ่านโค้ด", "#388E3C")
+        btnClearDtc = createBtn("ลบโค้ด", "#D32F2F")
+        btnRow1.addView(btnConnect)
+        btnRow1.addView(btnReadDtc)
+        btnRow1.addView(btnClearDtc)
+        root.addView(btnRow1)
+
+        // แถวปุ่มที่ 2
+        val btnRow2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 16)
+        }
+        btnLiveData = createBtn("ค่าสด (Live Data)", "#00838F")
+        btnActiveTest = createBtn("เทสหัวฉีด (Active Test)", "#EF6C00")
+        btnRow2.addView(btnLiveData)
+        btnRow2.addView(btnActiveTest)
+        root.addView(btnRow2)
+
+        // หน้าต่าง Console แสดงผล
+        val scrollView = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#1E1E1E"))
+            setPadding(16, 16, 16, 16)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        tvConsole = TextView(this).apply {
+            text = "MaxOBDPro พร้อมทำงาน... กรุณาเลือกยี่ห้อรถและกดเชื่อมต่อ"
+            setTextColor(Color.parseColor("#E0E0E0"))
+            textSize = 15f
+        }
+        scrollView.addView(tvConsole)
+        root.addView(scrollView)
+
+        setContentView(root)
+    }
+
+    private fun createBtn(label: String, colorHex: String): Button {
+        return Button(this).apply {
+            text = label
+            setBackgroundColor(Color.parseColor(colorHex))
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            params.setMargins(6, 0, 6, 0)
+            layoutParams = params
         }
     }
 
     private fun setupButtons() {
-        findViewById<Button>(R.id.btnConnect).setOnClickListener {
+        btnConnect.setOnClickListener {
             tvStatus.text = "Connecting KONNWEI..."
             lifecycleScope.launch {
                 try {
@@ -66,7 +171,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnReadDtc).setOnClickListener {
+        btnReadDtc.setOnClickListener {
             lifecycleScope.launch {
                 log("Reading DTC...")
                 val res = btManager.sendCommand("03")
@@ -74,7 +179,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnClearDtc).setOnClickListener {
+        btnClearDtc.setOnClickListener {
             lifecycleScope.launch {
                 log("Clearing DTC...")
                 val res = btManager.sendCommand("04")
@@ -82,7 +187,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnLiveData).setOnClickListener {
+        btnLiveData.setOnClickListener {
             lifecycleScope.launch {
                 log("Reading Live Data...")
                 btManager.sendCommand("AT SH 7E0")
@@ -92,7 +197,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<Button>(R.id.btnActiveTest).setOnClickListener {
+        btnActiveTest.setOnClickListener {
             lifecycleScope.launch {
                 log("Injector #1 Cut Test (5 sec)...")
                 btManager.sendCommand("AT SH 7E0")
@@ -112,18 +217,20 @@ class MainActivity : AppCompatActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
                 val selected = carBrands[pos]
                 lifecycleScope.launch {
-                    when {
-                        selected.contains("CAN 29-Bit") -> {
-                            btManager.sendCommand("AT SP 7")
-                            setAlert(false, "Protocol: Honda CAN 29-Bit Ready")
+                    try {
+                        when {
+                            selected.contains("CAN 29-Bit") -> {
+                                btManager.sendCommand("AT SP 7")
+                                setAlert(false, "Protocol: Honda CAN 29-Bit Ready")
+                            }
+                            selected.contains("MS-CAN") -> setAlert(true, "WARNING: Switch Adapter to MS-CAN (Pin 3/11)")
+                            selected.contains("24V") -> setAlert(true, "DANGER: Use 24V->12V Step-Down Cable First!")
+                            else -> {
+                                btManager.sendCommand("AT SP 6")
+                                setAlert(false, "Direct Plug: KONNWEI MAXOBD Ready")
+                            }
                         }
-                        selected.contains("MS-CAN") -> setAlert(true, "WARNING: Switch Adapter to MS-CAN (Pin 3/11)")
-                        selected.contains("24V") -> setAlert(true, "DANGER: Use 24V->12V Step-Down Cable First!")
-                        else -> {
-                            btManager.sendCommand("AT SP 6")
-                            setAlert(false, "Direct Plug: KONNWEI MAXOBD Ready")
-                        }
-                    }
+                    } catch (_: Exception) {}
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -156,7 +263,3 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        btManager.disconnect()
-    }
-}
