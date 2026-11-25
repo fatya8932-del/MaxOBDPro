@@ -6,7 +6,6 @@
     android:background="#121212"
     android:padding="16dp">
 
-    <!-- แถบสถานะและวัดโวลต์แบตเตอรี่ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -33,7 +32,6 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- แถบแจ้งเตือนหัวสแกน -->
     <TextView
         android:id="@+id/tvAdapterAlert"
         android:layout_width="match_parent"
@@ -43,15 +41,13 @@
         android:textSize="14sp"
         android:paddingBottom="10dp" />
 
-    <!-- ตัวเลือกยี่ห้อรถ -->
     <Spinner
         android:id="@+id/spinnerBrand"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:background="#2C2C2C"
+        android:background="#E0E0E0"
         android:layout_marginBottom="12dp" />
 
-    <!-- ปุ่มคำสั่งแถวที่ 1: เชื่อมต่อ / อ่านโค้ด / ลบโค้ด -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -64,7 +60,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="เชื่อมต่อ"
-            android:backgroundTint="#1976D2"
+            android:background="#1976D2"
             android:textColor="#FFFFFF"
             android:layout_marginEnd="6dp" />
 
@@ -74,7 +70,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="อ่านโค้ด"
-            android:backgroundTint="#388E3C"
+            android:background="#388E3C"
             android:textColor="#FFFFFF"
             android:layout_marginEnd="6dp" />
 
@@ -84,11 +80,10 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="ลบโค้ด"
-            android:backgroundTint="#D32F2F"
+            android:background="#D32F2F"
             android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <!-- ปุ่มคำสั่งแถวที่ 2: ค่าสด (Live Data) / เทสระบบ (Active Test) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -101,7 +96,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="ค่าสด (Live Data)"
-            android:backgroundTint="#00838F"
+            android:background="#00838F"
             android:textColor="#FFFFFF"
             android:layout_marginEnd="6dp" />
 
@@ -111,11 +106,10 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="เทสระบบ (Active Test)"
-            android:backgroundTint="#EF6C00"
+            android:background="#EF6C00"
             android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <!-- หน้าต่างแสดงผลข้อมูล (Console) -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
