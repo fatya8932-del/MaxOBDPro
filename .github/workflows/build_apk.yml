@@ -11,10 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clean and Fix All Files Safely
+      - name: Clean Old Icons and Build Custom OBD Logo
         run: |
           rm -f build.gradle.kts settings.gradle.kts app/build.gradle.kts
           find . -name "*.kt" -delete
+          rm -rf app/src/main/res/mipmap-*
+          mkdir -p app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26
+
           python3 -c '
           import glob
           for ext in ("**/*.gradle", "**/*.properties", "**/*.xml", "**/*.java"):
@@ -23,6 +26,13 @@ jobs:
                   if data.startswith(b"\xef\xbb\xbf"):
                       open(f, "wb").write(data[3:])
           '
+
+          echo 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHZlY3RvciB4bWxuczphbmRyb2lkPSJodHRwOi8vc2NoZW1hcy5hbmRyb2lkLmNvbS9hcGsvcmVzL2FuZHJvaWQiCiAgICBhbmRyb2lkOndpZHRoPSIxMDhkcCIKICAgIGFuZHJvaWQ6aGVpZ2h0PSIxMDhkcCIKICAgIGFuZHJvaWQ6dmlld3BvcnRXaWR0aD0iMTA4IgogICAgYW5kcm9pZDp2aWV3cG9ydEhlaWdodD0iMTA4Ij4KICAgIDxwYXRoIGFuZHJvaWQ6ZmlsbENvbG9yPSIjMTIxMjEyIiBhbmRyb2lkOnBhdGhEYXRhPSJNMCAwaDEwOHYxMDhoLTEwOHoiLz4KICAgIDxwYXRoIGFuZHJvaWQ6c3Ryb2tlQ29sb3I9IiMwMEU2NzYiIGFuZHJvaWQ6c3Ryb2tlV2lkdGg9IjQiIGFuZHJvaWQ6ZmlsbENvbG9yPSIjMUUyNzJDIiBhbmRyb2lkOnBhdGhEYXRhPSJNMjQgMzZMODQgMzZMNzggNzJIMzAgNzJaIi8+CiAgICA8cGF0aCBhbmRyb2lkOmZpbGxDb2xvcj0iIzAwRTY3NiIgYW5kcm9pZDpwYXRoRGF0YT0iTTM2IDQ2aDZ2NmgtNnpNNDYgNDZoNnY2aC02ek01NiA0Nmg2djZoLTZ6TTY2IDQ2aDZ2NmgtNnoiLz4KICAgIDxwYXRoIGFuZHJvaWQ6c3Ryb2tlQ29sb3I9IiNGRkVCM0IiIGFuZHJvaWQ6c3Ryb2tlV2lkdGg9IjMuNSIgYW5kcm9pZDpzdHJva2VMaW5lQ2FwPSJyb3VuZCIgYW5kcm9pZDpzdHJva2VMaW5lSm9pbj0icm91bmQiIGFuZHJvaWQ6cGF0aERhdGE9Ik0zNCA2Mkw0NCA2Mkw0OSA1NEw1NSA2OEw2MCA1OEw3NCA2MiIvPgo8L3ZlY3Rvcj4=' | base64 -d > app/src/main/res/drawable/ic_launcher_foreground.xml
+
+          echo 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPGFkYXB0aXZlLWljb24geG1sbnM6YW5kcm9pZD0iaHR0cDovL3NjaGVtYXMuYW5kcm9pZC5jb20vYXBrL3Jlcy9hbmRyb2lkIj4KICAgIDxiYWNrZ3JvdW5kIGFuZHJvaWQ6ZHJhd2FibGU9IkBhbmRyb2lkOmNvbG9yL2JsYWNrIi8+CiAgICA8Zm9yZWdyb3VuZCBhbmRyb2lkOmRyYXdhYmxlPSJAZHJhd2FibGUvaWNfbGF1bmNoZXJfZm9yZWdyb3VuZCIvPgo8L2FkYXB0aXZlLWljb24+' | base64 -d > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+
+          cp app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
           echo 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPG1hbmlmZXN0IHhtbG5zOmFuZHJvaWQ9Imh0dHA6Ly9zY2hlbWFzLmFuZHJvaWQuY29tL2Fway9yZXMvYW5kcm9pZCI+CiAgICA8dXNlcy1wZXJtaXNzaW9uIGFuZHJvaWQ6bmFtZT0iYW5kcm9pZC5wZXJtaXNzaW9uLkJMVUVUT09USCIgLz4KICAgIDx1c2VzLXBlcm1pc3Npb24gYW5kcm9pZDpuYW1lPSJhbmRyb2lkLnBlcm1pc3Npb24uQkxVRVRPT1RIX0FETUlOIiAvPgogICAgPHVzZXMtcGVybWlzc2lvbiBhbmRyb2lkOm5hbWU9ImFuZHJvaWQucGVybWlzc2lvbi5CTFVEVE9PVEhfQ09OTkVDVCIgLz4KICAgIDx1c2VzLXBlcm1pc3Npb24gYW5kcm9pZDpuYW1lPSJhbmRyb2lkLnBlcm1pc3Npb24uQkxVRVRPT1RIX1NDQU4iIC8+CiAgICA8dXNlcy1wZXJtaXNzaW9uIGFuZHJvaWQ6bmFtZT0iYW5kcm9pZC5wZXJtaXNzaW9uLkFDQ0VTU19GSU5FX0xPQ0FUSU9OIiAvPgogICAgPGFwcGxpY2F0aW9uCiAgICAgICAgYW5kcm9pZDphbGxvd0JhY2t1cD0idHJ1ZSIKICAgICAgICBhbmRyb2lkOmljb249IkBtaXBtYXAvaWNfbGF1bmNoZXIiCiAgICAgICAgYW5kcm9pZDpyb3VuZEljb249IkBtaXBtYXAvaWNfbGF1bmNoZXJfcm91bmQiCiAgICAgICAgYW5kcm9pZDpsYWJlbD0iTWF4T0JEUHJvIgogICAgICAgIGFuZHJvaWQ6dGhlbWU9IkBzdHlsZS9UaGVtZS5BcHBDb21wYXQuTm9BY3Rpb25CYXIiPgogICAgICAgIDxhY3Rpdml0eSBhbmRyb2lkOm5hbWU9Ii5NYWluQWN0aXZpdHkiIGFuZHJvaWQ6ZXhwb3J0ZWQ9InRydWUiPgogICAgICAgICAgICA8aW50ZW50LWZpbHRlcj4KICAgICAgICAgICAgICAgIDxhY3Rpb24gYW5kcm9pZDpuYW1lPSJhbmRyb2lkLmludGVudC5hY3Rpb24uTUFJTiIgLz4KICAgICAgICAgICAgICAgIDxjYXRlZ29yeSBhbmRyb2lkOm5hbWU9ImFuZHJvaWQuaW50ZW50LmNhdGVnb3J5LkxBVU5DSEVSIiAvPgogICAgICAgICAgICA8L2ludGVudC1maWx0ZXI+CiAgICAgICAgPC9hY3Rpdml0eT4KICAgIDwvYXBwbGljYXRpb24+CjwvbWFuaWZlc3Q+' | base64 -d > app/src/main/AndroidManifest.xml
 
       - uses: actions/setup-java@v4
