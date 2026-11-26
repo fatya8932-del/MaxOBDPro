@@ -685,7 +685,9 @@ public class MainActivity extends AppCompatActivity {
                     if (dashVolt != null) dashVolt.setText("แบตเตอรี่ (V)\n\n" + volt);
                     if (dashInj != null) {
                         dashInj.setText(String.format(Locale.US, "💉 ค่าชดเชยหัวฉีด (mm³/st):\nสูบ 1: %+.2f  |  สูบ 2: %+.2f\nสูบ 3: %+.2f  |  สูบ 4: %+.2f",
-                                inj[0], inj[1], inj[2], inj[3]))
+                            inj, inj, inj, inj));
+
+
                     }
 
                    boolean injAbnormal = (Math.abs(inj[0]) > 3.0 || Math.abs(inj[1]) > 3.0 || Math.abs(inj[2]) > 3.0 || Math.abs(inj[3]) > 3.0);
