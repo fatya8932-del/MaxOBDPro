@@ -1,0 +1,2 @@
+﻿rootProject.name = "MaxOBDPro"
+include ':app'
