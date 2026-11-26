@@ -675,7 +675,7 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     tvLiveData.setText("ค่าสด: รอบ: " + rpm + " RPM | เร็ว: " + speed + " km/h | น้ำ: " + temp + " °C | ราง: " + rail + " MPa | แบต: " + volt);
                     String injText = String.format(Locale.US, "💉 ชดเชยหัวฉีด (mm³/st): สูบ1: %+.2f | สูบ2: %+.2f | สูบ3: %+.2f | สูบ4: %+.2f",
-                            inj, inj, inj, inj);
+                            inj[0], inj[1], inj[2], inj[3]);
                     tvInjectorData.setText(injText);
 
                     if (dashRpm != null) dashRpm.setText("รอบเครื่องยนต์ (RPM)\n\n" + rpm);
@@ -685,10 +685,12 @@ public class MainActivity extends AppCompatActivity {
                     if (dashVolt != null) dashVolt.setText("แบตเตอรี่ (V)\n\n" + volt);
                     if (dashInj != null) {
                         dashInj.setText(String.format(Locale.US, "💉 ค่าชดเชยหัวฉีด (mm³/st):\nสูบ 1: %+.2f  |  สูบ 2: %+.2f\nสูบ 3: %+.2f  |  สูบ 4: %+.2f",
-                                inj, inj, inj, inj));
+                                inj[0], inj[1], inj[2], inj[3]))
                     }
 
-                    boolean injAbnormal = (Math.abs(inj) > 3.0 || Math.abs(inj) > 3.0 || Math.abs(inj) > 3.0 || Math.abs(inj) > 3.0);
+                   boolean injAbnormal = (Math.abs(inj[0]) > 3.0 || Math.abs(inj[1]) > 3.0 || Math.abs(inj[2]) > 3.0 || Math.abs(inj[3]) > 3.0);
+
+
                     if (temp >= 98) {
                         tvAlert.setText("⚠️ แจ้งเตือนวิกฤต: อุณหภูมิน้ำสูงเกิน 98°C (" + temp + "°C)!");
                         tvAlert.setBackgroundColor(Color.parseColor("#C62828"));
