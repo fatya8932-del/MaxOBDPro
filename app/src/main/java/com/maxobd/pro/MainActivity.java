@@ -199,4 +199,224 @@ public class MainActivity extends AppCompatActivity {
         } catch (SecurityException ignored) {}
     }
 
-    private void connectSelectedDevice() {
+      private void connectSelectedDevice() {
+        int pos = spDevices.getSelectedItemPosition();
+        if (pos < 0 || pos >= pairedList.size()) { Toast.makeText(this, "กรุณาจับคู่หัวอ่านในตั้งค่า Bluetooth ก่อนครับ", Toast.LENGTH_SHORT).show(); return; }
+        BluetoothDevice device = pairedList.get(pos);
+        tvStatus.setText("กำลังเชื่อมต่อ " + device.getName() + "...");
+        new Thread(() -> {
+            try {
+                if (btSocket != null && btSocket.isConnected()) btSocket.close();
+                btSocket = device.createRfcommSocketToServiceRecord(SPP_UUID);
+                btSocket.connect();
+                outStream = btSocket.getOutputStream(); inStream = btSocket.getInputStream();
+                sendAtCommand("ATZ"); sendAtCommand("ATE0"); sendAtCommand("ATL0");
+                String volt = sendAtCommand("ATRV");
+                mainHandler.post(() -> {
+                    tvStatus.setText("✅ เชื่อมต่อหัวอ่านสำเร็จ! แรงดันไฟ OBD (ขา 16): " + volt);
+                    appendLog("Connected -> Batt: " + volt);
+                });
+                readAndDisplayEcuIdentity(getSelectedCar());
+            } catch (Exception e) { mainHandler.post(() -> tvStatus.setText("❌ เชื่อมต่อไม่สำเร็จ: " + e.getMessage())); }
+        }).start();
+    }
+
+    private void runAutoProtocolScan() {
+        if (!isConnected()) return;
+        isScanningLive = false;
+        VehicleDatabase.CarProfile car = getSelectedCar();
+        tvStatus.setText("กำลังสแกนและจับคู่โปรโตคอลอัตโนมัติสำหรับ " + car.brand + " " + car.modelYear + "...");
+        new Thread(() -> {
+            sendAtCommand(car.protocolCmd); sendAtCommand(car.headerCmd);
+            String resp = sendAtCommand(car.initCmd);
+            if (resp.contains("NO DATA") || resp.contains("ERROR") || resp.isEmpty()) {
+                mainHandler.post(() -> appendLog("โปรโตคอลหลักไม่ตอบ -> กำลังสลับโปรโตคอลอัตโนมัติ..."));
+                String[] fallbackProtocols = {"ATSP6", "ATSP7", "ATSP5", "ATSP4", "ATSP0"};
+                for (String proto : fallbackProtocols) {
+                    sendAtCommand(proto);
+                    String testResp = sendAtCommand("0100");
+                    if (!testResp.contains("NO DATA") && !testResp.contains("ERROR") && !testResp.isEmpty()) {
+                        resp = "จับคู่สำเร็จด้วยโปรโตคอล " + proto + " -> " + testResp;
+                        break;
+                    }
+                }
+            }
+            final String finalAnalysis = VehicleDatabase.analyzeObdResponse(resp);
+            final String raw = resp;
+            String ecuInfo = readAndDisplayEcuIdentity(car);
+            lastReportSummary = ecuInfo + "\n\nผลการตรวจเช็ก:\n" + finalAnalysis;
+            mainHandler.post(() -> { tvStatus.setText(finalAnalysis); appendLog("Scan Result: " + raw); });
+        }).start();
+    }
+
+    private String readAndDisplayEcuIdentity(VehicleDatabase.CarProfile car) {
+        String vinHex = sendAtCommand("0902");
+        String calHex = sendAtCommand("0904");
+        if (calHex.contains("NO DATA") || calHex.contains("ERROR") || calHex.isEmpty()) {
+            calHex = sendAtCommand("22F187");
+        }
+        String vinText = hexToAscii(vinHex);
+        String partNo = hexToAscii(calHex);
+        String detectedYear = decodeVinYear(vinText);
+
+        String displayPart = partNo.isEmpty() ? car.engineCode : partNo + " (" + car.engineCode + ")";
+        String displayYear = detectedYear.isEmpty() ? car.modelYear : car.modelYear + " [ปีจริงจาก VIN: " + detectedYear + "]";
+
+        String summary = "📟 ข้อมูลกล่อง ECU ที่เชื่อมต่อ:\n" +
+                         "• ตระกูลรถ / รุ่นปี: " + car.brand + " - " + displayYear + "\n" +
+                         "• หมายเลขกล่อง (Part / Cal ID): " + displayPart +
+                         (vinText.length() >= 10 ? "\n• เลขตัวถัง (VIN): " + vinText : "");
+
+        mainHandler.post(() -> tvEcuIdentity.setText(summary));
+        return summary;
+    }
+
+    private String hexToAscii(String hexResp) {
+        if (hexResp == null || hexResp.contains("NO DATA") || hexResp.contains("ERROR") || hexResp.contains("7F")) return "";
+        String clean = hexResp.replaceAll("[^0-9A-Fa-f]", "");
+        clean = clean.replaceFirst("^(490201|490401|62F187|62F190)", "");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i + 1 < clean.length(); i += 2) {
+            try {
+                int val = Integer.parseInt(clean.substring(i, i + 2), 16);
+                if (val >= 32 && val <= 126) sb.append((char) val);
+            } catch (Exception ignored) {}
+        }
+        return sb.toString().trim();
+    }
+
+    private String decodeVinYear(String vin) {
+        if (vin == null || vin.length() < 10) return "";
+        char code = Character.toUpperCase(vin.charAt(9));
+        Map<Character, String> yearMap = new HashMap<>();
+        yearMap.put('5', "2005"); yearMap.put('6', "2006"); yearMap.put('7', "2007");
+        yearMap.put('8', "2008"); yearMap.put('9', "2009"); yearMap.put('A', "2010");
+        yearMap.put('B', "2011"); yearMap.put('C', "2012"); yearMap.put('D', "2013");
+        yearMap.put('E', "2014"); yearMap.put('F', "2015"); yearMap.put('G', "2016");
+        yearMap.put('H', "2017"); yearMap.put('J', "2018"); yearMap.put('K', "2019");
+        yearMap.put('L', "2020"); yearMap.put('M', "2021"); yearMap.put('N', "2022");
+        yearMap.put('P', "2023"); yearMap.put('R', "2024"); yearMap.put('S', "2025");
+        yearMap.put('T', "2026");
+        return yearMap.containsKey(code) ? yearMap.get(code) : "";
+    }
+
+    private void readFaultCodes() {
+        if (!isConnected()) return;
+        isScanningLive = false;
+        VehicleDatabase.CarProfile car = getSelectedCar();
+        new Thread(() -> {
+            String resp = sendAtCommand("03");
+            Map<String, String> dict = VehicleDatabase.getDtcDictionary();
+            StringBuilder sb = new StringBuilder("รายการโค้ดเสีย (DTC) - " + car.brand + " " + car.modelYear + ":\n");
+            boolean found = false;
+            for (Map.Entry<String, String> entry : dict.entrySet()) {
+                if (resp.toUpperCase().contains(entry.getKey().substring(1))) {
+                    sb.append("• ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                    found = true;
+                }
+            }
+            if (!found) sb.append(VehicleDatabase.analyzeObdResponse(resp));
+            lastReportSummary = tvEcuIdentity.getText().toString() + "\n\n" + sb.toString();
+            mainHandler.post(() -> { tvStatus.setText(sb.toString()); appendLog("DTC (03) -> " + resp); });
+        }).start();
+    }
+
+    private void clearFaultCodes() {
+        if (!isConnected()) return;
+        isScanningLive = false;
+        new Thread(() -> {
+            String resp = sendAtCommand("04");
+            mainHandler.post(() -> { tvStatus.setText("สั่งลบโค้ดเสียเรียบร้อย (คำตอบ: " + resp + ")"); appendLog("Clear DTC -> " + resp); });
+        }).start();
+    }
+
+    private void runActiveTest(String testName, int type) {
+        if (!isConnected()) return;
+        isScanningLive = false;
+        VehicleDatabase.CarProfile car = getSelectedCar();
+        String cmd = (type == 1) ? car.actInjector : (type == 2) ? car.actCoil : (type == 3) ? car.actFan : car.actEgr;
+        tvStatus.setText("กำลังส่งคำสั่ง Active Test: " + testName + " (" + cmd + ")...");
+        new Thread(() -> {
+            sendAtCommand(car.headerCmd); sendAtCommand("1003");
+            String resp = sendAtCommand(cmd);
+            mainHandler.post(() -> {
+                tvStatus.setText("ผลการทดสอบ [" + testName + "]:\n" + VehicleDatabase.analyzeObdResponse(resp));
+                appendLog("ActiveTest [" + cmd + "] -> " + resp);
+            });
+        }).start();
+    }
+
+    private void toggleLiveData() {
+        if (!isConnected()) return;
+        isScanningLive = !isScanningLive;
+        if (!isScanningLive) { tvStatus.setText("หยุดการอ่านค่าสดแล้ว"); return; }
+        VehicleDatabase.CarProfile car = getSelectedCar();
+        tvStatus.setText("กำลังอ่านค่าสดแบบเรียลไทม์ (" + car.engineCode + ")...");
+        new Thread(() -> {
+            while (isScanningLive && isConnected()) {
+                int rpm = parseRpm(sendAtCommand(car.rpmPid));
+                int temp = parseTemp(sendAtCommand(car.coolantPid));
+                int rail = parseRail(sendAtCommand(car.railPid));
+                String volt = sendAtCommand("ATRV");
+                mainHandler.post(() -> {
+                    tvLiveData.setText("ค่าสด: รอบ: " + rpm + " RPM | น้ำ: " + temp + " °C | ราง: " + rail + " MPa | แบต: " + volt);
+                    if (temp >= 98) {
+                        tvAlert.setText("⚠️ แจ้งเตือนวิกฤต: อุณหภูมิน้ำสูงเกิน 98°C (" + temp + "°C)!");
+                        tvAlert.setBackgroundColor(Color.parseColor("#C62828"));
+                    } else {
+                        tvAlert.setText("สถานะค่าเครื่องยนต์: ปกติ (สีเขียว)");
+                        tvAlert.setBackgroundColor(Color.parseColor("#2E7D32"));
+                    }
+                });
+                try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+            }
+        }).start();
+    }
+
+    private void shareRepairReport() {
+        String dateStr = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
+        String fullReport = "=== ใบรายงานตรวจเช็กรถยนต์ MaxOBDPro ===\nวันที่/เวลา: " + dateStr + "\n\n" + lastReportSummary + "\n\n----------------------------------------\nตรวจสอบโดยระบบ MaxOBDPro v5.5";
+        Intent sendIntent = new Intent(Intent.ACTION_SEND);
+        sendIntent.setType("text/plain");
+        sendIntent.putExtra(Intent.EXTRA_TEXT, fullReport);
+        startActivity(Intent.createChooser(sendIntent, "ส่งรายงานซ่อมให้ลูกค้าผ่าน..."));
+    }
+
+   
+    private int parseRpm(String hex) {
+        try { String c = hex.replaceAll("[^0-9A-Fa-f]", ""); if (c.length() >= 8) return ((Integer.parseInt(c.substring(4, 6), 16) * 256) + Integer.parseInt(c.substring(6, 8), 16)) / 4; } catch (Exception ignored) {}
+        return 0;
+    }
+    private int parseTemp(String hex) {
+        try { String c = hex.replaceAll("[^0-9A-Fa-f]", ""); if (c.length() >= 6) return Integer.parseInt(c.substring(4, 6), 16) - 40; } catch (Exception ignored) {}
+        return 0;
+    }
+    private int parseRail(String hex) {
+        try { String c = hex.replaceAll("[^0-9A-Fa-f]", ""); if (c.length() >= 8) return ((Integer.parseInt(c.substring(4, 6), 16) * 256) + Integer.parseInt(c.substring(6, 8), 16)) / 100; } catch (Exception ignored) {}
+        return 0;
+    }
+
+    private synchronized String sendAtCommand(String cmd) {
+        try {
+            while (inStream.available() > 0) inStream.read();
+            outStream.write((cmd + "\r").getBytes()); outStream.flush();
+            StringBuilder sb = new StringBuilder();
+            long start = System.currentTimeMillis();
+            while (System.currentTimeMillis() - start < 2200) {
+                if (inStream.available() > 0) {
+                    char c = (char) inStream.read();
+                    if (c == '>') break;
+                    sb.append(c);
+                } else { Thread.sleep(20); }
+            }
+            return sb.toString().replace("\r", " ").replace("\n", " ").trim();
+        } catch (Exception e) { return "ERROR: " + e.getMessage(); }
+    }
+
+    private boolean isConnected() {
+        if (btSocket == null || !btSocket.isConnected()) { Toast.makeText(this, "กรุณาเชื่อมต่อหัวอ่าน OBD2 ก่อนครับ", Toast.LENGTH_SHORT).show(); return false; }
+        return true;
+    }
+    private void appendLog(String msg) { mainHandler.post(() -> tvLog.append("• " + msg + "\n")); }
+}
+
