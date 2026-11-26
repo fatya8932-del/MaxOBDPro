@@ -34,20 +34,9 @@ jobs:
 
           python3 -c '
           code = open("app/src/main/java/com/maxobd/pro/MainActivity.java", "r", encoding="utf-8").read()
-          code = code.replace("inj, inj, inj, inj", "inj[0], inj[1], inj[2], inj[3]")
-          code = code.replace("Math.abs(inj)", "Math.abs(inj[0])")
-          lines = code.splitlines()
-          clean_lines = []
-          seen_clear = False
-          for line in lines:
-              if "private void clearFaultCodes()" in line:
-                  if seen_clear:
-                      break
-                  seen_clear = True
-              clean_lines.append(line)
-          if not clean_lines[-1].strip().endswith("}"):
-              clean_lines.append("}")
-          open("app/src/main/java/com/maxobd/pro/MainActivity.java", "w", encoding="utf-8").write("\n".join(clean_lines))
+          code = code.replace("appendLog(\"All-System Scan: Active=\" + activeCount + \", Faults=\" + faultCount);", "appendLog(\"All-System Scan Completed\");")
+          code = code.replace("appendLog(\"Deep Scan [\" + moduleName + \"] -> ID:\" + matchedHeader);", "appendLog(\"Deep Scan [\" + moduleName + \"] Completed\");")
+          open("app/src/main/java/com/maxobd/pro/MainActivity.java", "w", encoding="utf-8").write(code)
           '
 
       - uses: actions/setup-java@v4
