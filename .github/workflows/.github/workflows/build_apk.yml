@@ -1,23 +1,33 @@
 name: Build MaxOBD APK
-on: [push, workflow_dispatch]
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+
+      - name: Clean UTF-8 BOM and Old Files
+        run: |
+          find . -type f \( -name "*.gradle" -o -name "*.properties" -o -name "*.xml" -o -name "*.java" \) -exec sed -i '1s/^\xEF\xBB\xBF//' {} +
+          find . -name "*.kt" -delete
+
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+
+      - uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.4'
-      - name: Build Debug APK
-        run: gradle assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+          gradle-version: '8.2'
+
+      - run: gradle assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: MaxOBDPro-APK
+          name: MaxOBDPro-v5.2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
