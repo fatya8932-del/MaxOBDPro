@@ -111,3 +111,12 @@ public class VehicleDatabase {
         }
         if (res.contains("NO DATA") || res.contains("STOPPED") || res.contains("?")) {
             return "⚠️ จับสายบัสได้ แต่กล่อง ECU เงียบสนิท (NO DATA)\n" +
+                   "• สายสื่อสารไม่ขาด (ไฟอาจค้างที่ CAN-H 2.5V / CAN-L 2.5V เท่ากัน)\n" +
+                   "• จุดเช็ก: 1. ไฟเลี้ยงกล่อง (B+/IG) 2. ระบบ Immo 3. หากไฟครบแต่ยังค้าง 2.5V เท่ากัน (ไม่สวิงเป็น 3.2V/1.8V) แสดงว่าภาคจ่ายไฟ 5V หรือชิป MCU ในกล่องเสียครับ";
+        }
+        if (res.contains("7F")) {
+            return "ℹ️ กล่อง ECU ดี (สัญญาณ CAN 3.2V/1.8V ปกติ) แต่ปฏิเสธคำสั่ง (" + res.trim() + ")";
+        }
+        return "✅ เชื่อมต่อกล่อง ECU สำเร็จ (สัญญาณ CAN Active ~3.2V / 1.8V)\nข้อมูลตอบกลับ: " + res.trim();
+    }
+}
