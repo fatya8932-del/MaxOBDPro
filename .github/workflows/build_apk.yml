@@ -1,32 +1,41 @@
 name: Build MaxOBD APK
+
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Clean Old KTS/KT Files and UTF-8 BOM
+        run: |
+          rm -f build.gradle.kts settings.gradle.kts app/build.gradle.kts
+          find . -name "*.kt" -delete
+          python3 -c '
+          import glob
+          for ext in ("**/*.gradle", "**/*.properties", "**/*.xml", "**/*.java"):
+              for f in glob.glob(ext, recursive=True):
+                  data = open(f, "rb").read()
+                  if data.startswith(b"\xef\xbb\xbf"):
+                      open(f, "wb").write(data[3:])
+          '
+
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.4'
+          gradle-version: '8.2'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - run: gradle assembleDebug --stacktrace
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: MaxOBDPro-APK
+          name: MaxOBDPro-v5.2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
