@@ -22,9 +22,8 @@ jobs:
                   data = open(f, "rb").read()
                   if data.startswith(b"\xef\xbb\xbf"):
                       open(f, "wb").write(data[3:])
-          '
-          cat << 'EOF' > app/src/main/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
+
+          manifest = """<?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://android.com">
               <uses-permission android:name="android.permission.BLUETOOTH" />
               <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
@@ -44,8 +43,9 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>
-          EOF
+          </manifest>"""
+          open("app/src/main/AndroidManifest.xml", "w").write(manifest)
+          '
 
       - uses: actions/setup-java@v4
         with:
